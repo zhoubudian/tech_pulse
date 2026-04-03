@@ -1,0 +1,30 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SourcePlatform {
+  GITHUB
+  HACKER_NEWS
+  JUEJIN
+}
+
+model Article {
+  id          String         @id @default(cuid())
+  title       String
+  originalUrl String         @unique
+  summary     String?        @db.Text
+  tags        String[]
+  score       Int            @default(0)
+  platform    SourcePlatform
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([platform, createdAt])
+}
