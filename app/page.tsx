@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArticleCard } from "@/components/article-card";
 
 type Platform = "GITHUB" | "HACKER_NEWS" | "JUEJIN";
@@ -23,24 +23,70 @@ const TABS = [
   { label: "掘金", value: "JUEJIN" },
 ];
 
+const PAGE_SIZE = 20;
+
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState("");
   const [articles, setArticles] = useState<Article[]>([]);
-  const [loading, setLoading] = useState(true);
-  // 区分首次加载和 tab 切换：首次用骨架屏，切换 tab 用遮罩
+  const [skip, setSkip] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(true); // 首次 / tab 切换
+  const [loadingMore, setLoadingMore] = useState(false); // 滚动加载更多
   const [initialLoad, setInitialLoad] = useState(true);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // 切换 Tab 时重置分页状态
   useEffect(() => {
+    setArticles([]);
+    setSkip(0);
+    setHasMore(true);
     setLoading(true);
-    const query = activeTab ? `?platform=${activeTab}` : "";
-    fetch(`/api/articles${query}`)
+    setInitialLoad(true);
+  }, [activeTab]);
+
+  // 根据 skip 变化请求数据
+  useEffect(() => {
+    const isFirst = skip === 0;
+    if (!isFirst) setLoadingMore(true);
+
+    const params = new URLSearchParams({
+      skip: String(skip),
+      take: String(PAGE_SIZE),
+    });
+    if (activeTab) params.set("platform", activeTab);
+
+    fetch(`/api/articles?${params}`)
       .then((r) => r.json())
-      .then((data) => setArticles(Array.isArray(data) ? data : []))
+      .then((data) => {
+        if (!data.articles) return;
+        setArticles((prev) =>
+          isFirst ? data.articles : [...prev, ...data.articles],
+        );
+        setHasMore(data.hasMore);
+      })
       .finally(() => {
         setLoading(false);
+        setLoadingMore(false);
         setInitialLoad(false);
       });
-  }, [activeTab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skip, activeTab]);
+
+  // IntersectionObserver：sentinel 进入视口时加载下一页
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          setSkip((prev) => prev + PAGE_SIZE);
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading]);
 
   const today = new Date().toLocaleDateString("zh-CN", {
     month: "long",
@@ -102,16 +148,40 @@ export default function HomePage() {
             暂无数据
           </div>
         ) : (
-          // 切换 Tab：保留旧内容并整体变暗，避免布局跳动
-          <div
-            className={`grid grid-cols-1 gap-4 transition-opacity duration-200 md:grid-cols-2 ${
-              loading ? "pointer-events-none opacity-40" : "opacity-100"
-            }`}
-          >
-            {articles.map((article) => (
-              <ArticleCard key={article.id} article={article} />
-            ))}
-          </div>
+          <>
+            {/* 切换 Tab：保留旧内容并整体变暗，避免布局跳动 */}
+            <div
+              className={`grid grid-cols-1 gap-4 transition-opacity duration-200 md:grid-cols-2 ${
+                loading ? "pointer-events-none opacity-40" : "opacity-100"
+              }`}
+            >
+              {articles.map((article) => (
+                <ArticleCard key={article.id} article={article} />
+              ))}
+            </div>
+
+            {/* 滚动加载更多：骨架占位 */}
+            {loadingMore && (
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-48 animate-pulse rounded-lg bg-card"
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* sentinel：进入视口时触发加载下一页 */}
+            <div ref={sentinelRef} className="h-4" />
+
+            {/* 没有更多数据时的提示 */}
+            {!hasMore && articles.length > 0 && (
+              <p className="mt-6 text-center text-xs text-muted-foreground">
+                — 已加载全部 {articles.length} 条 —
+              </p>
+            )}
+          </>
         )}
       </main>
     </div>

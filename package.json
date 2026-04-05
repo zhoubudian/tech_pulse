@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "next lint",
     "crawl": "node --env-file .env --import tsx scrapers/index.ts",
-    "summarize": "node --env-file .env --import tsx scripts/summarize.ts"
+    "summarize": "node --env-file .env --import tsx scripts/summarize.ts",
+    "crawl:select": "node --env-file .env --import tsx scripts/crawl-select.ts",
+    "update:select": "npm run crawl:select & npm run summarize",
+    "pipeline": "npm run crawl && npm run summarize"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

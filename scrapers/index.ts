@@ -4,7 +4,10 @@ import { scrapeGithubTrending, ScrapedItem } from "./github";
 import { scrapeHackerNews } from "./hackernews";
 import { scrapeJuejin } from "./juejin";
 
-async function saveItems(items: ScrapedItem[], platform: SourcePlatform) {
+export async function saveItems(
+  items: ScrapedItem[],
+  platform: SourcePlatform,
+) {
   let saved = 0;
   let skipped = 0;
 
@@ -83,7 +86,14 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("爬取任务异常退出:", err);
-  process.exit(1);
-});
+// 只有直接运行此文件时才自动执行，被 import 时不触发
+const argv1 = process.argv[1] ?? "";
+if (
+  argv1.endsWith("scrapers/index.ts") ||
+  argv1.endsWith("scrapers\\index.ts")
+) {
+  main().catch((err) => {
+    console.error("爬取任务异常退出:", err);
+    process.exit(1);
+  });
+}
