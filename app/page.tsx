@@ -1,101 +1,119 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import { ArticleCard } from "@/components/article-card";
+
+type Platform = "GITHUB" | "HACKER_NEWS" | "JUEJIN";
+
+interface Article {
+  id: string;
+  title: string;
+  originalUrl: string;
+  summary: string | null;
+  tags: string[];
+  score: number;
+  platform: Platform;
+  createdAt: string;
+}
+
+const TABS = [
+  { label: "全部", value: "" },
+  { label: "GitHub", value: "GITHUB" },
+  { label: "HN", value: "HACKER_NEWS" },
+  { label: "掘金", value: "JUEJIN" },
+];
+
+export default function HomePage() {
+  const [activeTab, setActiveTab] = useState("");
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [loading, setLoading] = useState(true);
+  // 区分首次加载和 tab 切换：首次用骨架屏，切换 tab 用遮罩
+  const [initialLoad, setInitialLoad] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const query = activeTab ? `?platform=${activeTab}` : "";
+    fetch(`/api/articles${query}`)
+      .then((r) => r.json())
+      .then((data) => setArticles(Array.isArray(data) ? data : []))
+      .finally(() => {
+        setLoading(false);
+        setInitialLoad(false);
+      });
+  }, [activeTab]);
+
+  const today = new Date().toLocaleDateString("zh-CN", {
+    month: "long",
+    day: "numeric",
+  });
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="min-h-screen bg-background">
+      {/* 顶部加载进度条 */}
+      <div
+        className={`fixed left-0 top-0 z-50 h-0.5 bg-orange-400 transition-all duration-300 ${
+          loading && !initialLoad ? "w-3/4 opacity-100" : "w-0 opacity-0"
+        }`}
+      />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {/* 顶部导航栏 */}
+      <header className="sticky top-0 z-10 border-b border-white/8 bg-background/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-2 text-lg font-bold text-foreground">
+            <span className="text-orange-400">⚡</span>
+            <span>Tech Pulse</span>
+            <span className="text-muted-foreground">技术脉搏</span>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-sm text-muted-foreground">
+            <span>📅</span>
+            <span>{today}</span>
+          </div>
         </div>
+      </header>
+
+      <main className="mx-auto max-w-6xl px-6 py-8">
+        {/* Tab 筛选 */}
+        <div className="mb-8 flex gap-1 border-b border-white/8">
+          {TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={`px-4 pb-3 pt-1 text-sm font-medium transition-colors ${
+                activeTab === tab.value
+                  ? "border-b-2 border-orange-400 text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              [{tab.label}]
+            </button>
+          ))}
+        </div>
+
+        {/* 文章网格 */}
+        {initialLoad && loading ? (
+          // 首次加载：骨架屏
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-48 animate-pulse rounded-lg bg-card" />
+            ))}
+          </div>
+        ) : articles.length === 0 ? (
+          <div className="py-20 text-center text-muted-foreground">
+            暂无数据
+          </div>
+        ) : (
+          // 切换 Tab：保留旧内容并整体变暗，避免布局跳动
+          <div
+            className={`grid grid-cols-1 gap-4 transition-opacity duration-200 md:grid-cols-2 ${
+              loading ? "pointer-events-none opacity-40" : "opacity-100"
+            }`}
+          >
+            {articles.map((article) => (
+              <ArticleCard key={article.id} article={article} />
+            ))}
+          </div>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
