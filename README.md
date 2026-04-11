@@ -1,25 +1,27 @@
 # Tech Pulse 技术脉搏
 
-每日自动聚合 **GitHub Trending**、**Hacker News**、**掘金** 的热门技术内容，由 AI 生成中文摘要，展示在极简的深色 Web 页面上。
+每日自动聚合 **GitHub Trending**、**Hacker News**、**掘金** 的热门技术内容，由 AI 生成中文摘要，展示在极简的深色 Web 页面上。支持 **AI 问答**，用自然语言向 AI 提问，基于数据库实时分析回答。
 
 ```
 定时任务 → 爬取三平台数据 → DeepSeek AI 生成中文摘要 → 存入 PostgreSQL → 前端滚动展示
+                                                                          ↓
+                                                              AI 问答：意图解析 → 数据检索 → 流式回答
 ```
 
 ---
 
 ## 技术栈
 
-| 层级   | 技术                                                   |
-| ------ | ------------------------------------------------------ |
-| 框架   | Next.js 14 (App Router)                                |
-| 语言   | TypeScript                                             |
-| 数据库 | PostgreSQL + Prisma ORM + `@prisma/adapter-pg`         |
-| UI     | Tailwind CSS + Shadcn UI                               |
-| AI     | DeepSeek-V3 API（兼容 OpenAI 格式）                    |
-| 爬取   | Axios + Cheerio（GitHub）+ Algolia API（HN）+ 掘金接口 |
-| 运行时 | Node.js >= 20.9.0，tsx 直接运行 TypeScript             |
-| 部署   | Vercel + Vercel Cron Jobs                              |
+| 层级   | 技术                                                        |
+| ------ | ----------------------------------------------------------- |
+| 框架   | Next.js 14 (App Router)                                     |
+| 语言   | TypeScript                                                  |
+| 数据库 | PostgreSQL + Prisma ORM + `@prisma/adapter-pg`              |
+| UI     | Tailwind CSS + Shadcn UI                                    |
+| AI     | DeepSeek-V3 API（兼容 OpenAI 格式），用于摘要生成与 AI 问答 |
+| 爬取   | Axios + Cheerio（GitHub）+ Algolia API（HN）+ 掘金接口      |
+| 运行时 | Node.js >= 20.9.0，tsx 直接运行 TypeScript                  |
+| 部署   | Vercel + Vercel Cron Jobs                                   |
 
 ---
 
@@ -92,6 +94,7 @@ npm run dev
 | `npm run crawl:select` | 交互式选择平台爬取                 |
 | `npm run summarize`    | 对数据库中无摘要的记录批量调用 AI  |
 | `npm run pipeline`     | `crawl` + `summarize` 一键顺序执行 |
+| `npm run chat`         | 在终端中与 AI 进行多轮问答（CLI）  |
 
 ---
 
@@ -101,6 +104,7 @@ npm run dev
 tech-pulse/
 ├── app/
 │   ├── api/articles/route.ts   # 分页查询接口（支持 skip / take / platform）
+│   ├── api/chat/route.ts       # AI 问答接口（意图解析 → 数据检索 → 流式回答）
 │   ├── globals.css             # 深海军蓝主题 CSS 变量
 │   ├── layout.tsx              # 根布局，全局 dark 模式
 │   └── page.tsx                # 首页：Tab 筛选 + 滚动加载卡片列表
@@ -108,7 +112,8 @@ tech-pulse/
 │   ├── article-card.tsx        # 文章卡片组件
 │   └── ui/                     # Shadcn UI 基础组件
 ├── lib/
-│   ├── deepseek.ts             # DeepSeek API 封装（摘要 + 标签）
+│   ├── deepseek.ts             # DeepSeek API 封装（摘要、意图解析、流式对话）
+│   ├── chat.ts                 # AI 问答数据库查询逻辑（按意图检索文章）
 │   ├── prisma.ts               # Prisma 客户端单例（含 pg adapter）
 │   └── utils.ts                # Tailwind 工具函数
 ├── prisma/
@@ -121,7 +126,8 @@ tech-pulse/
 │   └── index.ts                # 全量爬取入口（npm run crawl）
 ├── scripts/
 │   ├── crawl-select.ts         # 交互式平台选择爬取
-│   └── summarize.ts            # AI 批量摘要脚本
+│   ├── summarize.ts            # AI 批量摘要脚本
+│   └── chat.ts                 # AI 问答 CLI（多轮对话，/new 开启新对话）
 ├── .env.example                # 环境变量模板
 └── prisma.config.ts            # Prisma 数据库连接配置
 ```
@@ -170,6 +176,35 @@ GET /api/articles?platform=GITHUB&skip=0&take=20
   "hasMore": true
 }
 ```
+
+---
+
+## AI 问答 API
+
+```
+POST /api/chat
+Content-Type: application/json
+```
+
+**请求体**
+
+```json
+{
+  "messages": [
+    { "role": "user", "content": "今天有什么咨询？" },
+    { "role": "assistant", "content": "今天共收录了..." },
+    { "role": "user", "content": "有哪些关于 TypeScript 的？" }
+  ]
+}
+```
+
+**处理流程**
+
+1. **意图解析** — DeepSeek 从对话中提取查询条件（关键词、平台、时间范围）
+2. **数据检索** — 按条件查询 PostgreSQL，默认只查今天的数据，最多返回 30 条
+3. **流式回答** — 将文章列表 + 完整对话历史交给 DeepSeek，以 `text/plain` 流式返回
+
+**响应**：`Content-Type: text/plain; charset=utf-8`（流式，打字机效果）
 
 ---
 
