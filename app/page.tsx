@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArticleCard } from "@/components/article-card";
+import { ChatPanel } from "@/components/chat-panel";
 
 type Platform = "GITHUB" | "HACKER_NEWS" | "JUEJIN";
 
@@ -33,6 +34,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true); // 首次 / tab 切换
   const [loadingMore, setLoadingMore] = useState(false); // 滚动加载更多
   const [initialLoad, setInitialLoad] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // 切换 Tab 时重置分页状态
@@ -95,6 +97,19 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* AI 对话面板 */}
+      <ChatPanel isOpen={chatOpen} onClose={() => setChatOpen(false)} />
+
+      {/* 悬浮 AI 按钮 */}
+      {!chatOpen && (
+        <button
+          onClick={() => setChatOpen(true)}
+          title="AI 问答"
+          className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-card text-xl shadow-lg transition-all duration-200 hover:border-orange-400 hover:scale-110"
+        >
+          🤖
+        </button>
+      )}
       {/* 顶部加载进度条 */}
       <div
         className={`fixed left-0 top-0 z-50 h-0.5 bg-orange-400 transition-all duration-300 ${
