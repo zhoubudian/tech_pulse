@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "scaffold": "next dev --turbo",
     "crawl": "node --env-file .env --import tsx scrapers/index.ts",
     "summarize": "node --env-file .env --import tsx scripts/summarize.ts",
     "crawl:select": "node --env-file .env --import tsx scripts/crawl-select.ts",

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { ChatMessage, parseIntent, streamAnswer } from "@/lib/deepseek";
 import { queryArticlesByIntent } from "@/lib/chat";
 
+const ENCRYPTION_KEY = 0xad;
+
 export async function POST(request: NextRequest) {
   let messages: ChatMessage[];
 
@@ -24,11 +26,32 @@ export async function POST(request: NextRequest) {
     const articles = await queryArticlesByIntent(intent);
 
     // Step 3: 流式生成回答
-    const stream = await streamAnswer(messages, articles);
+    const originalStream = await streamAnswer(messages, articles);
 
-    return new Response(stream, {
+    // 创建混淆转换流
+    const obfuscatedStream = new ReadableStream({
+      async start(controller) {
+        const reader = originalStream.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            controller.close();
+            break;
+          }
+
+          // 对字节流进行 XOR 混淆
+          const obfuscated = new Uint8Array(value.length);
+          for (let i = 0; i < value.length; i++) {
+            obfuscated[i] = value[i] ^ ENCRYPTION_KEY;
+          }
+          controller.enqueue(obfuscated);
+        }
+      },
+    });
+
+    return new Response(obfuscatedStream, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Type": "application/octet-stream",
         "Cache-Control": "no-cache",
         "X-Article-Count": String(articles.length),
       },
